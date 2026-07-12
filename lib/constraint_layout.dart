@@ -1,2 +1,12 @@
 export 'src/constraint_layout.dart'
-    show ConstraintLayout, Constraint, RenderConstraintLayout, ConstraintLayoutParentData;
+    show
+        Anchor,
+        ChildConstraint,
+        Constraint,
+        ConstraintLayout,
+        ConstraintLayoutParentData,
+        ConstraintRef,
+        ConstrainedLink,
+        Dimension,
+        DimensionKind,
+        RenderConstraintLayout;
