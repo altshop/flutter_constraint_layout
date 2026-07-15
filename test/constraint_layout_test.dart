@@ -152,6 +152,46 @@ void main() {
       expect(tester.getSize(find.byKey(childKey)), const Size(70, 45));
     });
 
+    testWidgets('clamps wrap content width to the parent trailing edge', (
+      tester,
+    ) async {
+      final childKey = GlobalKey();
+
+      await _pumpConstraintLayout(
+        tester,
+        children: [
+          Constraint(
+            ref: .of('child'),
+            left: .toLeftOf(.parent, margin: 40),
+            child: SizedBox(key: childKey, width: 300, height: 20),
+          ),
+        ],
+      );
+
+      expect(_offsetOf(tester, childKey), const Offset(40, 0));
+      expect(tester.getSize(find.byKey(childKey)), const Size(260, 20));
+    });
+
+    testWidgets('clamps wrap content height to the parent bottom edge', (
+      tester,
+    ) async {
+      final childKey = GlobalKey();
+
+      await _pumpConstraintLayout(
+        tester,
+        children: [
+          Constraint(
+            ref: .of('child'),
+            top: .toTopOf(.parent, margin: 50),
+            child: SizedBox(key: childKey, width: 20, height: 200),
+          ),
+        ],
+      );
+
+      expect(_offsetOf(tester, childKey), const Offset(0, 50));
+      expect(tester.getSize(find.byKey(childKey)), const Size(20, 150));
+    });
+
     testWidgets('expands wrap content dimensions to min limits', (
       tester,
     ) async {
@@ -734,6 +774,58 @@ void main() {
       );
 
       expect(_offsetOf(tester, childKey), const Offset(30, 0));
+    });
+  });
+
+  group('center anchors', () {
+    testWidgets('centers a child on the parent', (tester) async {
+      final childKey = GlobalKey();
+
+      await _pumpConstraintLayout(
+        tester,
+        children: [
+          Constraint(
+            ref: .of('child'),
+            width: .fixed(50),
+            height: .fixed(20),
+            centerX: .toCenterXOf(.parent),
+            centerY: .toCenterYOf(.parent),
+            child: SizedBox(key: childKey),
+          ),
+        ],
+      );
+
+      expect(_offsetOf(tester, childKey), const Offset(125, 90));
+    });
+
+    testWidgets('centers a child on another child', (tester) async {
+      final anchorKey = GlobalKey();
+      final childKey = GlobalKey();
+
+      await _pumpConstraintLayout(
+        tester,
+        children: [
+          Constraint(
+            ref: .of('anchor'),
+            width: .fixed(40),
+            height: .fixed(40),
+            left: .toLeftOf(.parent, margin: 20),
+            top: .toTopOf(.parent, margin: 20),
+            child: SizedBox(key: anchorKey),
+          ),
+          Constraint(
+            ref: .of('child'),
+            width: .fixed(20),
+            height: .fixed(20),
+            centerX: .toCenterXOf(.of('anchor')),
+            centerY: .toCenterYOf(.of('anchor')),
+            child: SizedBox(key: childKey),
+          ),
+        ],
+      );
+
+      expect(_offsetOf(tester, anchorKey), const Offset(20, 20));
+      expect(_offsetOf(tester, childKey), const Offset(30, 30));
     });
   });
 

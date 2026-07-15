@@ -33,17 +33,17 @@ enum DimensionKind {
 }
 
 class Dimension {
-  const Dimension(this.kind, {this.size = 0.0, this.percent = 0.0});
+  const Dimension(this.kind, {this.size = 0.0, this.fraction = 0.0});
 
   static const Dimension matchParent = Dimension(.matchParent);
   static const Dimension fillToConstraint = Dimension(.fillToConstraint);
   static const Dimension wrapContent = Dimension(.wrapContent);
   const Dimension.fixed(double size) : this(.fixed, size: size);
-  const Dimension.percent(double percent) : this(.percent, percent: percent);
+  const Dimension.percent(double percent) : this(.percent, fraction: percent);
 
   final DimensionKind kind;
   final double size;
-  final double percent;
+  final double fraction;
 
   @override
   bool operator ==(Object other) {
@@ -52,11 +52,11 @@ class Dimension {
             other is Dimension &&
             kind == other.kind &&
             size == other.size &&
-            percent == other.percent;
+            fraction == other.fraction;
   }
 
   @override
-  int get hashCode => Object.hash(Dimension, kind, size, percent);
+  int get hashCode => Object.hash(Dimension, kind, size, fraction);
 }
 
 class Constraint extends ParentDataWidget<ConstraintLayoutParentData> {
@@ -76,6 +76,8 @@ class Constraint extends ParentDataWidget<ConstraintLayoutParentData> {
     this.start,
     this.end,
     this.baseline,
+    this.centerX,
+    this.centerY,
     this.verticalBias = 0.5,
     this.horizontalBias = 0.5,
     required super.child,
@@ -98,6 +100,9 @@ class Constraint extends ParentDataWidget<ConstraintLayoutParentData> {
 
   final ConstrainedLink? start;
   final ConstrainedLink? end;
+
+  final ConstrainedLink? centerX;
+  final ConstrainedLink? centerY;
 
   final ConstrainedLink? baseline;
 
@@ -125,6 +130,8 @@ class Constraint extends ParentDataWidget<ConstraintLayoutParentData> {
       start: start,
       end: end,
       baseline: baseline,
+      centerX: centerX,
+      centerY: centerY,
       verticalBias: verticalBias,
       horizontalBias: horizontalBias,
     );
@@ -168,7 +175,7 @@ class ConstraintRef {
   }
 }
 
-enum Anchor { left, top, right, bottom, start, end, baseline }
+enum Anchor { left, top, right, bottom, start, end, baseline, centerX, centerY }
 
 class ConstrainedLink {
   const ConstrainedLink(this.reference, this.anchor, {this.margin = 0.0});
@@ -187,6 +194,12 @@ class ConstrainedLink {
     : anchor = .end;
   const ConstrainedLink.toBaselineOf(this.reference, {this.margin = 0.0})
     : anchor = .baseline;
+  const ConstrainedLink.toCenterXOf(this.reference)
+    : anchor = .centerX,
+      margin = 0;
+  const ConstrainedLink.toCenterYOf(this.reference)
+    : anchor = .centerY,
+      margin = 0;
 
   final ConstraintRef reference;
 
@@ -224,6 +237,8 @@ class ChildConstraint {
     this.start,
     this.end,
     this.baseline,
+    this.centerX,
+    this.centerY,
     this.verticalBias = 0.5,
     this.horizontalBias = 0.5,
   });
@@ -248,6 +263,9 @@ class ChildConstraint {
 
   final ConstrainedLink? baseline;
 
+  final ConstrainedLink? centerX;
+  final ConstrainedLink? centerY;
+
   final double verticalBias;
   final double horizontalBias;
 
@@ -270,6 +288,8 @@ class ChildConstraint {
             start == other.start &&
             end == other.end &&
             baseline == other.baseline &&
+            centerX == other.centerX &&
+            centerY == other.centerY &&
             verticalBias == other.verticalBias &&
             horizontalBias == other.horizontalBias;
   }
@@ -291,6 +311,8 @@ class ChildConstraint {
     start,
     end,
     baseline,
+    centerX,
+    centerY,
     verticalBias,
     horizontalBias,
   );
@@ -535,6 +557,8 @@ class _ChildVariables {
       top = cw.Param.withContext('$name.top'),
       right = cw.Param.withContext('$name.right'),
       bottom = cw.Param.withContext('$name.bottom'),
+      centerX = cw.Param.withContext('$name.centerX'),
+      centerY = cw.Param.withContext('$name.centerY'),
       width = cw.Param.withContext('$name.width'),
       height = cw.Param.withContext('$name.height'),
       baseline = cw.Param.withContext('$name.baseline') {
@@ -542,6 +566,8 @@ class _ChildVariables {
     top.name = '$name.top';
     right.name = '$name.right';
     bottom.name = '$name.bottom';
+    centerX.name = '$name.centerX';
+    centerY.name = '$name.centerY';
     width.name = '$name.width';
     height.name = '$name.height';
     baseline.name = '$name.baseline';
@@ -551,6 +577,8 @@ class _ChildVariables {
   final cw.Param top;
   final cw.Param right;
   final cw.Param bottom;
+  final cw.Param centerX;
+  final cw.Param centerY;
   final cw.Param width;
   final cw.Param height;
   final cw.Param baseline;
@@ -594,6 +622,8 @@ _LayoutResult _calculateLayout({
   add(parent.height.equals(cw.cm(layoutSize.height)));
   add(parent.right.equals(parent.left + parent.width));
   add(parent.bottom.equals(parent.top + parent.height));
+  add(parent.centerX.equals(parent.left + parent.width * cw.cm(0.5)));
+  add(parent.centerY.equals(parent.top + parent.height * cw.cm(0.5)));
   add(parent.baseline.equals(parent.top));
 
   for (final input in children) {
@@ -609,10 +639,18 @@ _LayoutResult _calculateLayout({
     add(variables.right.equals(variables.left + variables.width));
     add(variables.bottom.equals(variables.top + variables.height));
     add(
+      variables.centerX.equals(variables.left + variables.width * cw.cm(0.5)),
+    );
+    add(
+      variables.centerY.equals(variables.top + variables.height * cw.cm(0.5)),
+    );
+    add(
       variables.baseline.equals(
         variables.top + cw.cm(input.baselineDistance ?? 0),
       ),
     );
+    add(variables.right <= parent.right);
+    add(variables.bottom <= parent.bottom);
 
     _addDimensionConstraints(
       add: add,
@@ -713,13 +751,16 @@ void _addDimensionConstraints({
     case DimensionKind.fixed:
       add(variable.equals(cw.cm(dimension.size)));
     case DimensionKind.percent:
-      add(variable.equals(cw.cm(parentSize * dimension.percent)));
+      add(variable.equals(cw.cm(parentSize * dimension.fraction)));
     case DimensionKind.matchParent:
       add(variable.equals(cw.cm(parentSize)));
     case DimensionKind.fillToConstraint:
       break;
     case DimensionKind.wrapContent:
-      add(variable.equals(cw.cm(bounds.constrain(wrapContentSize))));
+      add(
+        variable.equals(cw.cm(bounds.constrain(wrapContentSize))) |
+            cw.Priority.strong,
+      );
   }
 
   if (bounds.min != null) {
@@ -737,7 +778,7 @@ double _resolveLimitDimension(
 ) {
   return switch (dimension.kind) {
     DimensionKind.fixed => dimension.size,
-    DimensionKind.percent => parentSize * dimension.percent,
+    DimensionKind.percent => parentSize * dimension.fraction,
     DimensionKind.matchParent => parentSize,
     DimensionKind.fillToConstraint => parentSize,
     DimensionKind.wrapContent => wrapContentSize,
@@ -862,6 +903,16 @@ void _addHorizontalConstraints({
     return;
   }
 
+  if (constraint.centerX != null) {
+    final anchor = _targetAnchor(
+      variablesByRef,
+      constraint.centerX!.reference,
+      _resolveAnchor(constraint.centerX!.anchor, textDirection),
+    );
+    add(variables.centerX.equals(anchor + cw.cm(constraint.centerX!.margin)));
+    return;
+  }
+
   if (left != null && right != null) {
     final leftAnchor = _targetAnchor(
       variablesByRef,
@@ -935,6 +986,16 @@ void _addVerticalConstraints({
 
   if (constraint.height.kind == DimensionKind.matchParent) {
     add(variables.top.equals(cw.cm(0)));
+    return;
+  }
+
+  if (constraint.centerY != null) {
+    final anchor = _targetAnchor(
+      variablesByRef,
+      constraint.centerY!.reference,
+      constraint.centerY!.anchor,
+    );
+    add(variables.centerY.equals(anchor + cw.cm(constraint.centerY!.margin)));
     return;
   }
 
@@ -1091,6 +1152,8 @@ cw.Param _targetAnchor(
     Anchor.top => variables.top,
     Anchor.right || Anchor.end => variables.right,
     Anchor.bottom => variables.bottom,
+    Anchor.centerX => variables.centerX,
+    Anchor.centerY => variables.centerY,
     Anchor.baseline => variables.baseline,
   };
 }
