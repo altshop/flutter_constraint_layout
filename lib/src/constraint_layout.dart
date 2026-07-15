@@ -881,6 +881,32 @@ void _addHorizontalConstraints({
   required Map<ConstraintRef, _ChildVariables> variablesByRef,
   required TextDirection? textDirection,
 }) {
+  _checkLink(
+    source: Anchor.left,
+    link: constraint.left,
+    allowedTargets: const {Anchor.left, Anchor.right},
+  );
+  _checkLink(
+    source: Anchor.right,
+    link: constraint.right,
+    allowedTargets: const {Anchor.left, Anchor.right},
+  );
+  _checkLink(
+    source: Anchor.start,
+    link: constraint.start,
+    allowedTargets: const {Anchor.start, Anchor.end},
+  );
+  _checkLink(
+    source: Anchor.end,
+    link: constraint.end,
+    allowedTargets: const {Anchor.start, Anchor.end},
+  );
+  _checkLink(
+    source: Anchor.centerX,
+    link: constraint.centerX,
+    allowedTargets: const {Anchor.centerX},
+  );
+
   final left =
       constraint.left ??
       _directionalLink(
@@ -907,7 +933,7 @@ void _addHorizontalConstraints({
     final anchor = _targetAnchor(
       variablesByRef,
       constraint.centerX!.reference,
-      _resolveAnchor(constraint.centerX!.anchor, textDirection),
+      _resolveDirectionalAnchor(constraint.centerX!.anchor, textDirection),
     );
     add(variables.centerX.equals(anchor + cw.cm(constraint.centerX!.margin)));
     return;
@@ -917,12 +943,12 @@ void _addHorizontalConstraints({
     final leftAnchor = _targetAnchor(
       variablesByRef,
       left.reference,
-      _resolveAnchor(left.anchor, textDirection),
+      _resolveDirectionalAnchor(left.anchor, textDirection),
     );
     final rightAnchor = _targetAnchor(
       variablesByRef,
       right.reference,
-      _resolveAnchor(right.anchor, textDirection),
+      _resolveDirectionalAnchor(right.anchor, textDirection),
     );
 
     if (constraint.width.kind == DimensionKind.fillToConstraint) {
@@ -953,14 +979,14 @@ void _addHorizontalConstraints({
     final anchor = _targetAnchor(
       variablesByRef,
       left.reference,
-      _resolveAnchor(left.anchor, textDirection),
+      _resolveDirectionalAnchor(left.anchor, textDirection),
     );
     add(variables.left.equals(anchor + cw.cm(left.margin)));
   } else if (right != null) {
     final anchor = _targetAnchor(
       variablesByRef,
       right.reference,
-      _resolveAnchor(right.anchor, textDirection),
+      _resolveDirectionalAnchor(right.anchor, textDirection),
     );
     add(variables.right.equals(anchor - cw.cm(right.margin)));
   } else {
@@ -974,6 +1000,27 @@ void _addVerticalConstraints({
   required ChildConstraint constraint,
   required Map<ConstraintRef, _ChildVariables> variablesByRef,
 }) {
+  _checkLink(
+    source: Anchor.top,
+    link: constraint.top,
+    allowedTargets: const {Anchor.top, Anchor.bottom},
+  );
+  _checkLink(
+    source: Anchor.bottom,
+    link: constraint.bottom,
+    allowedTargets: const {Anchor.top, Anchor.bottom},
+  );
+  _checkLink(
+    source: Anchor.baseline,
+    link: constraint.baseline,
+    allowedTargets: const {Anchor.baseline},
+  );
+  _checkLink(
+    source: Anchor.centerY,
+    link: constraint.centerY,
+    allowedTargets: const {Anchor.centerY},
+  );
+
   if (constraint.baseline != null) {
     final link = constraint.baseline!;
     add(
@@ -1054,6 +1101,21 @@ void _addVerticalConstraints({
   }
 }
 
+void _checkLink({
+  required Anchor source,
+  required ConstrainedLink? link,
+  required Set<Anchor> allowedTargets,
+}) {
+  if (link == null || allowedTargets.contains(link.anchor)) {
+    return;
+  }
+
+  throw FlutterError(
+    'ConstraintLayout cannot connect $source to ${link.anchor}. '
+    'Allowed target anchors: ${allowedTargets.join(', ')}.',
+  );
+}
+
 void _addFillToConstraintConstraints({
   required void Function(cw.Constraint) add,
   required cw.Param position,
@@ -1123,7 +1185,7 @@ ConstrainedLink? _directionalLink({
   };
 }
 
-Anchor _resolveAnchor(Anchor anchor, TextDirection? textDirection) {
+Anchor _resolveDirectionalAnchor(Anchor anchor, TextDirection? textDirection) {
   return switch (anchor) {
     Anchor.start => switch (textDirection) {
       TextDirection.rtl => Anchor.right,

@@ -115,6 +115,34 @@ void main() {
       expect(_layoutSize(tester), const Size(70, 200));
       expect(tester.getSize(find.byKey(childKey)), const Size(70, 30));
     });
+
+    testWidgets('uses wrap content fallback when height is unbounded', (
+      tester,
+    ) async {
+      final childKey = GlobalKey();
+
+      await _pumpRawWidget(
+        tester,
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 300),
+          child: UnconstrainedBox(
+            constrainedAxis: Axis.horizontal,
+            alignment: Alignment.topLeft,
+            child: ConstraintLayout(
+              children: [
+                Constraint(
+                  ref: .of('child'),
+                  child: SizedBox(key: childKey, width: 70, height: 30),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      expect(_layoutSize(tester), const Size(300, 30));
+      expect(tester.getSize(find.byKey(childKey)), const Size(70, 30));
+    });
   });
 
   group('dimension', () {
@@ -466,6 +494,50 @@ void main() {
 
       expect(tester.getSize(find.byKey(childKey)), const Size(150, 100));
     });
+
+    testWidgets('resolves percent min and max dimensions', (tester) async {
+      final minKey = GlobalKey();
+      final maxKey = GlobalKey();
+
+      await _pumpConstraintLayout(
+        tester,
+        children: [
+          Constraint(
+            ref: .of('min'),
+            minWidth: .percent(0.5),
+            minHeight: .percent(0.5),
+            child: SizedBox(key: minKey, width: 70, height: 45),
+          ),
+          Constraint(
+            ref: .of('max'),
+            maxWidth: .percent(0.25),
+            maxHeight: .percent(0.25),
+            child: SizedBox(key: maxKey, width: 100, height: 80),
+          ),
+        ],
+      );
+
+      expect(tester.getSize(find.byKey(minKey)), const Size(150, 100));
+      expect(tester.getSize(find.byKey(maxKey)), const Size(75, 50));
+    });
+
+    testWidgets('throws when min dimensions exceed max dimensions', (
+      tester,
+    ) async {
+      await _pumpConstraintLayout(
+        tester,
+        children: [
+          Constraint(
+            ref: .of('child'),
+            minWidth: .fixed(100),
+            maxWidth: .fixed(50),
+            child: const SizedBox(width: 70, height: 45),
+          ),
+        ],
+      );
+
+      expect(tester.takeException(), isA<FlutterError>());
+    });
   });
 
   group('parent anchors', () {
@@ -774,6 +846,94 @@ void main() {
       );
 
       expect(_offsetOf(tester, childKey), const Offset(30, 0));
+    });
+
+    testWidgets('gives explicit right priority over end', (tester) async {
+      final childKey = GlobalKey();
+
+      await _pumpConstraintLayout(
+        tester,
+        children: [
+          Constraint(
+            ref: .of('child'),
+            width: .fixed(40),
+            height: .fixed(20),
+            right: .toRightOf(.parent, margin: 30),
+            end: .toEndOf(.parent, margin: 10),
+            child: SizedBox(key: childKey),
+          ),
+        ],
+      );
+
+      expect(_offsetOf(tester, childKey), const Offset(230, 0));
+    });
+
+    testWidgets('throws when start or end anchors target left or right', (
+      tester,
+    ) async {
+      await _pumpConstraintLayout(
+        tester,
+        children: [
+          Constraint(
+            ref: .of('child'),
+            start: .toLeftOf(.parent),
+            child: const SizedBox(width: 10, height: 10),
+          ),
+        ],
+      );
+
+      expect(tester.takeException(), isA<FlutterError>());
+    });
+
+    testWidgets('throws when left or right anchors target start or end', (
+      tester,
+    ) async {
+      await _pumpConstraintLayout(
+        tester,
+        children: [
+          Constraint(
+            ref: .of('child'),
+            left: .toStartOf(.parent),
+            child: const SizedBox(width: 10, height: 10),
+          ),
+        ],
+      );
+
+      expect(tester.takeException(), isA<FlutterError>());
+    });
+
+    testWidgets('throws when horizontal anchors target vertical anchors', (
+      tester,
+    ) async {
+      await _pumpConstraintLayout(
+        tester,
+        children: [
+          Constraint(
+            ref: .of('child'),
+            left: .toTopOf(.parent),
+            child: const SizedBox(width: 10, height: 10),
+          ),
+        ],
+      );
+
+      expect(tester.takeException(), isA<FlutterError>());
+    });
+
+    testWidgets('throws when vertical anchors target horizontal anchors', (
+      tester,
+    ) async {
+      await _pumpConstraintLayout(
+        tester,
+        children: [
+          Constraint(
+            ref: .of('child'),
+            top: .toLeftOf(.parent),
+            child: const SizedBox(width: 10, height: 10),
+          ),
+        ],
+      );
+
+      expect(tester.takeException(), isA<FlutterError>());
     });
   });
 
@@ -1276,6 +1436,70 @@ void main() {
       expect(renderObject.getMaxIntrinsicHeight(double.infinity), 45);
     });
 
+    testWidgets('applies fixed and wrap content intrinsic limits', (
+      tester,
+    ) async {
+      await _pumpConstraintLayout(
+        tester,
+        children: [
+          Constraint(
+            ref: .of('fixedMin'),
+            minWidth: .fixed(100),
+            minHeight: .fixed(60),
+            child: const SizedBox(width: 70, height: 45),
+          ),
+        ],
+      );
+
+      var renderObject = _layoutRenderObject(tester);
+
+      expect(renderObject.getMaxIntrinsicWidth(double.infinity), 100);
+      expect(renderObject.getMaxIntrinsicHeight(double.infinity), 60);
+
+      await _pumpConstraintLayout(
+        tester,
+        children: [
+          Constraint(
+            ref: .of('wrapMin'),
+            minWidth: .wrapContent,
+            minHeight: .wrapContent,
+            child: const SizedBox(width: 70, height: 45),
+          ),
+        ],
+      );
+
+      renderObject = _layoutRenderObject(tester);
+
+      expect(renderObject.getMaxIntrinsicWidth(double.infinity), 70);
+      expect(renderObject.getMaxIntrinsicHeight(double.infinity), 45);
+    });
+
+    testWidgets(
+      'ignores non-intrinsic min and max dimensions for intrinsic size',
+      (tester) async {
+        await _pumpConstraintLayout(
+          tester,
+          children: [
+            Constraint(
+              ref: .of('child'),
+              width: .fixed(180),
+              height: .fixed(100),
+              minWidth: .percent(0.5),
+              maxWidth: .matchParent,
+              minHeight: .percent(0.5),
+              maxHeight: .fillToConstraint,
+              child: const SizedBox(width: 20, height: 10),
+            ),
+          ],
+        );
+
+        final renderObject = _layoutRenderObject(tester);
+
+        expect(renderObject.getMaxIntrinsicWidth(double.infinity), 180);
+        expect(renderObject.getMaxIntrinsicHeight(double.infinity), 100);
+      },
+    );
+
     testWidgets('hit tests positioned children', (tester) async {
       var tapped = false;
       final childKey = GlobalKey();
@@ -1350,6 +1574,107 @@ void main() {
         childBox.localToGlobal(Offset.zero) - tester.getTopLeft(_layoutFinder),
         const Offset(10, 20),
       );
+    });
+
+    testWidgets('updates layout when inherited text direction changes', (
+      tester,
+    ) async {
+      final childKey = GlobalKey();
+
+      await _pumpConstraintLayout(
+        tester,
+        textDirection: TextDirection.ltr,
+        children: [
+          Constraint(
+            ref: .of('child'),
+            width: .fixed(40),
+            height: .fixed(20),
+            start: .toStartOf(.parent, margin: 10),
+            child: SizedBox(key: childKey),
+          ),
+        ],
+      );
+      expect(_offsetOf(tester, childKey), const Offset(10, 0));
+
+      await _pumpConstraintLayout(
+        tester,
+        textDirection: TextDirection.rtl,
+        children: [
+          Constraint(
+            ref: .of('child'),
+            width: .fixed(40),
+            height: .fixed(20),
+            start: .toStartOf(.parent, margin: 10),
+            child: SizedBox(key: childKey),
+          ),
+        ],
+      );
+
+      expect(_offsetOf(tester, childKey), const Offset(250, 0));
+    });
+
+    testWidgets('updates layout when constraint parent data changes', (
+      tester,
+    ) async {
+      final childKey = GlobalKey();
+
+      await _pumpConstraintLayout(
+        tester,
+        children: [
+          Constraint(
+            ref: .of('child'),
+            width: .fixed(40),
+            height: .fixed(20),
+            left: .toLeftOf(.parent, margin: 10),
+            child: SizedBox(key: childKey),
+          ),
+        ],
+      );
+      expect(_offsetOf(tester, childKey), const Offset(10, 0));
+
+      await _pumpConstraintLayout(
+        tester,
+        children: [
+          Constraint(
+            ref: .of('child'),
+            width: .fixed(40),
+            height: .fixed(20),
+            left: .toLeftOf(.parent, margin: 30),
+            child: SizedBox(key: childKey),
+          ),
+        ],
+      );
+
+      expect(_offsetOf(tester, childKey), const Offset(30, 0));
+    });
+
+    testWidgets('updates wrap content size when child size changes', (
+      tester,
+    ) async {
+      final childKey = GlobalKey();
+
+      await _pumpConstraintLayout(
+        tester,
+        children: [
+          Constraint(
+            ref: .of('child'),
+            child: SizedBox(key: childKey, width: 40, height: 20),
+          ),
+        ],
+      );
+      expect(tester.getSize(find.byKey(childKey)), const Size(40, 20));
+
+      await _pumpConstraintLayout(
+        tester,
+        children: [
+          Constraint(
+            ref: .of('child'),
+            child: SizedBox(key: childKey, width: 70, height: 30),
+          ),
+        ],
+      );
+
+      expect(tester.getSize(find.byKey(childKey)), const Size(70, 30));
     });
   });
 
