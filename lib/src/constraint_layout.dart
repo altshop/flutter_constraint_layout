@@ -352,21 +352,20 @@ class RenderConstraintLayout extends RenderBox
   @override
   void performLayout() {
     final inputs = <_ChildLayoutInput>[];
-    var child = firstChild;
 
-    while (child != null) {
+    for (final child in getChildrenAsList()) {
       final parentData = child.parentData! as ConstraintLayoutParentData;
       final constraint = parentData.constraint;
 
       if (constraint != null) {
-        final wrapContentConstraints = constraints.loosen();
-        child.layout(wrapContentConstraints, parentUsesSize: true);
+        final constraintsForWrapContent = constraints.loosen();
+        child.layout(constraintsForWrapContent, parentUsesSize: true);
         inputs.add(
           _ChildLayoutInput(
             renderBox: child,
             constraint: constraint,
-            wrapContentSize: child.size,
-            baselineDistance: child.getDistanceToBaseline(
+            wrapContentSize: child.getDryLayout(constraintsForWrapContent),
+            resolveBaselineDistance: () => child.getDistanceToBaseline(
               TextBaseline.alphabetic,
               onlyReal: true,
             ),
@@ -375,8 +374,6 @@ class RenderConstraintLayout extends RenderBox
       } else {
         child.layout(BoxConstraints.tight(Size.zero), parentUsesSize: true);
       }
-
-      child = parentData.nextSibling;
     }
 
     final result = _calculateLayout(
@@ -402,9 +399,8 @@ class RenderConstraintLayout extends RenderBox
   @override
   Size computeDryLayout(covariant BoxConstraints constraints) {
     final inputs = <_ChildLayoutInput>[];
-    var child = firstChild;
 
-    while (child != null) {
+    for (final child in getChildrenAsList()) {
       final parentData = child.parentData! as ConstraintLayoutParentData;
       final constraint = parentData.constraint;
 
@@ -415,15 +411,13 @@ class RenderConstraintLayout extends RenderBox
             renderBox: child,
             constraint: constraint,
             wrapContentSize: child.getDryLayout(wrapContentConstraints),
-            baselineDistance: child.getDryBaseline(
+            resolveBaselineDistance: () => child.getDryBaseline(
               wrapContentConstraints,
               TextBaseline.alphabetic,
             ),
           ),
         );
       }
-
-      child = parentData.nextSibling;
     }
 
     return _calculateLayout(
@@ -524,17 +518,19 @@ class RenderConstraintLayout extends RenderBox
 }
 
 class _ChildLayoutInput {
-  const _ChildLayoutInput({
+  _ChildLayoutInput({
     required this.renderBox,
     required this.constraint,
     required this.wrapContentSize,
-    required this.baselineDistance,
+    required this.resolveBaselineDistance,
   });
 
   final RenderBox renderBox;
   final ChildConstraint constraint;
   final Size wrapContentSize;
-  final double? baselineDistance;
+  final double? Function() resolveBaselineDistance;
+
+  double? get baselineDistance => resolveBaselineDistance();
 }
 
 class _LayoutResult {
@@ -605,6 +601,8 @@ _LayoutResult _calculateLayout({
     ConstraintRef.parent: parent,
   };
   final variablesByChild = <RenderBox, _ChildVariables>{};
+  final inputsByRef = <ConstraintRef, _ChildLayoutInput>{};
+  final baselineRefs = <ConstraintRef>{};
 
   void add(cw.Constraint constraint) {
     final result = solver.addConstraint(constraint);
@@ -614,6 +612,23 @@ _LayoutResult _calculateLayout({
         '${result.message}\n$constraint',
       );
     }
+  }
+
+  void enableBaseline(ConstraintRef ref) {
+    if (ref == ConstraintRef.parent || !baselineRefs.add(ref)) {
+      return;
+    }
+
+    final input = inputsByRef[ref];
+    if (input == null) {
+      return;
+    }
+    final variables = variablesByRef[ref]!;
+    add(
+      variables.baseline.equals(
+        variables.top + cw.cm(input.baselineDistance ?? 0),
+      ),
+    );
   }
 
   add(parent.left.equals(cw.cm(0)));
@@ -635,6 +650,7 @@ _LayoutResult _calculateLayout({
     }
     variablesByRef[input.constraint.ref] = variables;
     variablesByChild[input.renderBox] = variables;
+    inputsByRef[input.constraint.ref] = input;
 
     add(variables.right.equals(variables.left + variables.width));
     add(variables.bottom.equals(variables.top + variables.height));
@@ -643,11 +659,6 @@ _LayoutResult _calculateLayout({
     );
     add(
       variables.centerY.equals(variables.top + variables.height * cw.cm(0.5)),
-    );
-    add(
-      variables.baseline.equals(
-        variables.top + cw.cm(input.baselineDistance ?? 0),
-      ),
     );
     add(variables.right <= parent.right);
     add(variables.bottom <= parent.bottom);
@@ -685,6 +696,7 @@ _LayoutResult _calculateLayout({
     );
     _addVerticalConstraints(
       add: add,
+      enableBaseline: enableBaseline,
       variables: variables,
       constraint: constraint,
       variablesByRef: variablesByRef,
@@ -996,6 +1008,7 @@ void _addHorizontalConstraints({
 
 void _addVerticalConstraints({
   required void Function(cw.Constraint) add,
+  required void Function(ConstraintRef) enableBaseline,
   required _ChildVariables variables,
   required ChildConstraint constraint,
   required Map<ConstraintRef, _ChildVariables> variablesByRef,
@@ -1023,6 +1036,8 @@ void _addVerticalConstraints({
 
   if (constraint.baseline != null) {
     final link = constraint.baseline!;
+    enableBaseline(constraint.ref);
+    enableBaseline(link.reference);
     add(
       variables.baseline.equals(
         _targetAnchor(variablesByRef, link.reference, link.anchor) +

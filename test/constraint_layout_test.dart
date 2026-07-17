@@ -1051,6 +1051,33 @@ void main() {
   });
 
   group('baseline', () {
+    testWidgets('skips dry baselines without baseline constraints', (
+      tester,
+    ) async {
+      await _pumpConstraintLayout(
+        tester,
+        children: [
+          Constraint(
+            ref: .of('decorated'),
+            width: .fixed(40),
+            height: .fixed(30),
+            left: .toLeftOf(.parent),
+            top: .toTopOf(.parent),
+            child: const DecoratedBox(
+              decoration: BoxDecoration(color: Colors.red),
+            ),
+          ),
+        ],
+      );
+
+      expect(
+        _layoutRenderObject(
+          tester,
+        ).getDryLayout(const BoxConstraints.tightFor(width: 300, height: 200)),
+        _defaultCanvasSize,
+      );
+    });
+
     testWidgets('aligns child baselines', (tester) async {
       final firstKey = GlobalKey();
       final secondKey = GlobalKey();
@@ -1868,7 +1895,20 @@ class _RenderBaselineBox extends RenderBox {
   }
 
   @override
+  Size computeDryLayout(BoxConstraints constraints) {
+    return constraints.constrain(preferredSize);
+  }
+
+  @override
   double? computeDistanceToActualBaseline(TextBaseline baseline) {
+    return _baseline;
+  }
+
+  @override
+  double? computeDryBaseline(
+    BoxConstraints constraints,
+    TextBaseline baseline,
+  ) {
     return _baseline;
   }
 }
@@ -1886,6 +1926,11 @@ class _RenderPaintBox extends RenderBox {
   @override
   void performLayout() {
     size = constraints.biggest;
+  }
+
+  @override
+  Size computeDryLayout(BoxConstraints constraints) {
+    return constraints.biggest;
   }
 
   @override
